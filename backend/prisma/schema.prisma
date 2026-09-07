@@ -1,0 +1,66 @@
+// Prisma schema for the Hosted CRM
+// Docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  LOST
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Lead {
+  id        String     @id @default(uuid())
+  name      String
+  company   String
+  email     String     @unique
+  phone     String?
+  status    LeadStatus @default(NEW)
+  value     Decimal    @default(0.0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  meetings  Meeting[]
+}
+
+model KeyClient {
+  id             String    @id @default(uuid())
+  companyName    String    @unique
+  primaryContact String
+  email          String
+  phone          String?
+  tier           String    @default("Gold") // Gold, Platinum, Strategic
+  annualRevenue  Decimal   @default(0.0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  meetings       Meeting[]
+}
+
+model Meeting {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  status      MeetingStatus @default(SCHEDULED)
+  leadId      String?
+  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  clientId    String?
+  client      KeyClient?    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
