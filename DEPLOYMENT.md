@@ -163,7 +163,38 @@ Config lives in [`frontend/vercel.json`](frontend/vercel.json).
 
 ---
 
-## 7. Deploy checklist
+## 7. CI/CD (GitHub Actions)
+
+Pipeline: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+**On every pull request and push to `main` (CI):**
+- **Backend** — `npm ci`, `prisma generate`, `npm run build` (typecheck + compile), then
+  spins up a `postgres:16` service and runs `prisma migrate deploy` + `prisma migrate status`
+  to prove the migrations apply cleanly to a fresh database.
+- **Frontend** — `npm ci`, `npm run lint` (oxlint), `npm run build`.
+
+**On push to `main` only (CD)** — deploy jobs run *after* CI passes, and each **skips
+automatically unless its secrets are set**, so the pipeline is green out of the box:
+- **Frontend → Vercel** via the Vercel CLI (`vercel pull/build/deploy --prod`).
+- **Backend → Render** by calling a deploy hook.
+
+### Required GitHub secrets (repo → Settings → Secrets and variables → Actions)
+
+| Secret                   | Enables            | Where to get it                                             |
+| ------------------------ | ------------------ | ---------------------------------------------------------- |
+| `VERCEL_TOKEN`           | frontend deploy    | Vercel → Account Settings → Tokens                          |
+| `VERCEL_ORG_ID`          | frontend deploy    | `frontend/.vercel/project.json` after `vercel link`, or project settings |
+| `VERCEL_PROJECT_ID`      | frontend deploy    | same as above                                              |
+| `RENDER_DEPLOY_HOOK_URL` | backend deploy     | Render → service → Settings → Deploy Hook                   |
+
+Notes:
+- The Vercel project must have **Root Directory = `frontend`** (the CLI respects it during build).
+- **Railway** users: skip `RENDER_DEPLOY_HOOK_URL` and let Railway's native GitHub integration
+  auto-deploy on push (the deploy-backend job then simply skips).
+- Prefer platform-native Git integrations entirely? Delete the two `deploy-*` jobs and keep
+  only the CI jobs.
+
+## 8. Deploy checklist
 
 - [ ] Postgres provisioned; `DATABASE_URL` + `DIRECT_URL` captured.
 - [ ] Backend deployed on Railway/Render (root dir `backend`), env vars set.
