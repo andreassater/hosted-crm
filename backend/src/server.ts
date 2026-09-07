@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import cors from 'cors';
 
 const prisma = new PrismaClient();
@@ -9,58 +9,152 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+/** Wrap an async route so thrown errors become 400s instead of crashing. */
+const handler =
+  (fn: (req: Request, res: Response) => Promise<void>) =>
+  (req: Request, res: Response) => {
+    fn(req, res).catch((err) => {
+      const status = err instanceof Prisma.PrismaClientKnownRequestError ? 400 : 500;
+      res.status(status).json({ error: (err as Error).message });
+    });
+  };
+
 // --- HEALTH ---
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// --- LEADS ENDPOINTS ---
-app.get('/api/leads', async (_req: Request, res: Response) => {
-  const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json(leads);
-});
+// ========================= LEADS =========================
+app.get(
+  '/api/leads',
+  handler(async (req, res) => {
+    const { status, search } = req.query;
+    const where: Prisma.LeadWhereInput = {};
+    if (typeof status === 'string' && status) where.status = status as Prisma.LeadWhereInput['status'];
+    if (typeof search === 'string' && search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { company: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+    res.json(leads);
+  })
+);
 
-app.post('/api/leads', async (req: Request, res: Response) => {
-  try {
-    const newLead = await prisma.lead.create({ data: req.body });
-    res.status(201).json(newLead);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+app.post(
+  '/api/leads',
+  handler(async (req, res) => {
+    const lead = await prisma.lead.create({ data: req.body });
+    res.status(201).json(lead);
+  })
+);
 
-// --- MEETINGS ENDPOINTS ---
-app.get('/api/meetings', async (_req: Request, res: Response) => {
-  const meetings = await prisma.meeting.findMany({
-    include: { lead: true, client: true },
-    orderBy: { startTime: 'asc' },
-  });
-  res.json(meetings);
-});
+app.put(
+  '/api/leads/:id',
+  handler(async (req, res) => {
+    const lead = await prisma.lead.update({ where: { id: req.params.id }, data: req.body });
+    res.json(lead);
+  })
+);
 
-app.post('/api/meetings', async (req: Request, res: Response) => {
-  try {
+app.delete(
+  '/api/leads/:id',
+  handler(async (req, res) => {
+    await prisma.lead.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  })
+);
+
+// ========================= MEETINGS =========================
+app.get(
+  '/api/meetings',
+  handler(async (req, res) => {
+    const { status, from, to } = req.query;
+    const where: Prisma.MeetingWhereInput = {};
+    if (typeof status === 'string' && status)
+      where.status = status as Prisma.MeetingWhereInput['status'];
+    if (typeof from === 'string' || typeof to === 'string') {
+      where.startTime = {};
+      if (typeof from === 'string') where.startTime.gte = new Date(from);
+      if (typeof to === 'string') where.startTime.lte = new Date(to);
+    }
+    const meetings = await prisma.meeting.findMany({
+      where,
+      include: { lead: true, client: true },
+      orderBy: { startTime: 'asc' },
+    });
+    res.json(meetings);
+  })
+);
+
+app.post(
+  '/api/meetings',
+  handler(async (req, res) => {
     const meeting = await prisma.meeting.create({ data: req.body });
     res.status(201).json(meeting);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+  })
+);
 
-// --- KEY CLIENTS ENDPOINTS ---
-app.get('/api/clients', async (_req: Request, res: Response) => {
-  const clients = await prisma.keyClient.findMany({ orderBy: { companyName: 'asc' } });
-  res.json(clients);
-});
+app.put(
+  '/api/meetings/:id',
+  handler(async (req, res) => {
+    const meeting = await prisma.meeting.update({ where: { id: req.params.id }, data: req.body });
+    res.json(meeting);
+  })
+);
 
-app.post('/api/clients', async (req: Request, res: Response) => {
-  try {
+app.delete(
+  '/api/meetings/:id',
+  handler(async (req, res) => {
+    await prisma.meeting.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  })
+);
+
+// ========================= KEY CLIENTS =========================
+app.get(
+  '/api/clients',
+  handler(async (req, res) => {
+    const { tier, search } = req.query;
+    const where: Prisma.KeyClientWhereInput = {};
+    if (typeof tier === 'string' && tier) where.tier = tier;
+    if (typeof search === 'string' && search) {
+      where.OR = [
+        { companyName: { contains: search, mode: 'insensitive' } },
+        { primaryContact: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const clients = await prisma.keyClient.findMany({ where, orderBy: { companyName: 'asc' } });
+    res.json(clients);
+  })
+);
+
+app.post(
+  '/api/clients',
+  handler(async (req, res) => {
     const client = await prisma.keyClient.create({ data: req.body });
     res.status(201).json(client);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+  })
+);
+
+app.put(
+  '/api/clients/:id',
+  handler(async (req, res) => {
+    const client = await prisma.keyClient.update({ where: { id: req.params.id }, data: req.body });
+    res.json(client);
+  })
+);
+
+app.delete(
+  '/api/clients/:id',
+  handler(async (req, res) => {
+    await prisma.keyClient.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  })
+);
 
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => console.log(`CRM Backend running on port ${PORT}`));
