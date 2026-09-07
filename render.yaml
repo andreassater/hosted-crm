@@ -1,0 +1,30 @@
+# Render Blueprint — deploys the Express backend as a Docker web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# The container entrypoint runs `prisma migrate deploy` on start (RUN_MIGRATIONS defaults
+# to true), so migrations apply automatically on every deploy. To instead run migrations
+# once per deploy (recommended for >1 instance), set RUN_MIGRATIONS=false below and
+# uncomment `preDeployCommand`.
+services:
+  - type: web
+    name: hosted-crm-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true
+    # preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set these in the Render dashboard (sync:false keeps them out of the repo).
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      # - key: RUN_MIGRATIONS
+      #   value: "false"

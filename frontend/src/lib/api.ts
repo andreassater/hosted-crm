@@ -7,8 +7,14 @@ import type {
   MeetingInput,
 } from '@/types'
 
+// Base URL for the API.
+//   - Local dev / Vercel rewrite: leave VITE_API_URL unset → same-origin "/api/*".
+//   - Direct cross-origin backend: set VITE_API_URL="https://api.example.com"
+//     (the backend must allow this origin via CORS_ORIGIN).
+export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(`${API_BASE}${url}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })

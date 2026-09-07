@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Activity, Building2 } from 'lucide-react'
+import { API_BASE } from '@/lib/api'
 import { StatCards } from '@/components/StatCards'
 import { LeadsBoard } from '@/components/leads/LeadsBoard'
 import { MeetingsCalendar } from '@/components/meetings/MeetingsCalendar'
@@ -11,7 +12,7 @@ type Health = { status: string }
 function ApiStatus() {
   const [ok, setOk] = useState<boolean | null>(null)
   useEffect(() => {
-    fetch('/api/health')
+    fetch(`${API_BASE}/api/health`)
       .then((r) => (r.ok ? (r.json() as Promise<Health>) : Promise.reject()))
       .then((h) => setOk(h.status === 'ok'))
       .catch(() => setOk(false))

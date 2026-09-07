@@ -6,7 +6,10 @@ import cors from 'cors';
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors());
+// In production, restrict CORS to a comma-separated allowlist via CORS_ORIGIN
+// (e.g. "https://crm.vercel.app"). Unset = allow all origins (fine for local dev).
+const corsOrigin = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
+app.use(cors(corsOrigin ? { origin: corsOrigin } : undefined));
 app.use(express.json());
 
 /** Wrap an async route so thrown errors become 400s instead of crashing. */

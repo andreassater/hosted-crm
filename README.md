@@ -98,6 +98,10 @@ The Vite dev server proxies `/api/*` to the backend, so no CORS config is needed
 
 ## Deploy
 
-- Backend → Railway or Render
-- Frontend → Vercel or Netlify
-- Database → Supabase / Neon / Railway Postgres
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full production guide. In short:
+
+- **Backend** → Docker on Railway or Render ([backend/Dockerfile](backend/Dockerfile)); migrations
+  apply automatically on deploy via `prisma migrate deploy`.
+- **Frontend** → Vercel ([frontend/vercel.json](frontend/vercel.json)).
+- **Database** → managed Postgres (Supabase / Neon / Railway) with a pooled `DATABASE_URL`
+  and a direct `DIRECT_URL` for migrations.

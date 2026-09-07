@@ -3,7 +3,11 @@
 
 datasource db {
   provider = "postgresql"
+  // Pooled connection used by the app at runtime (e.g. Supabase :6543 / Neon pooler).
   url      = env("DATABASE_URL")
+  // Direct, non-pooled connection used only for migrations (e.g. Supabase/Neon :5432).
+  // Locally this can be the same value as DATABASE_URL.
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
