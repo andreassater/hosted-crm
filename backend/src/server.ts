@@ -2,17 +2,47 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { PrismaClient, Prisma } from '@prisma/client';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { requireAuth } from './auth';
+import {
+  validate,
+  leadCreateSchema,
+  leadUpdateSchema,
+  clientCreateSchema,
+  clientUpdateSchema,
+  meetingCreateSchema,
+  meetingUpdateSchema,
+} from './validation';
 
 const prisma = new PrismaClient();
 const app = express();
+
+// Behind Railway/Render/Vercel proxies — needed for correct client IPs (rate limiting).
+app.set('trust proxy', 1);
+
+// Security headers.
+app.use(helmet());
 
 // In production, restrict CORS to a comma-separated allowlist via CORS_ORIGIN
 // (e.g. "https://crm.vercel.app"). Unset = allow all origins (fine for local dev).
 const corsOrigin = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
 app.use(cors(corsOrigin ? { origin: corsOrigin } : undefined));
-app.use(express.json());
 
-/** Wrap an async route so thrown errors become 400s instead of crashing. */
+app.use(express.json({ limit: '100kb' }));
+
+// Basic rate limiting on the API surface.
+app.use(
+  '/api',
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+/** Wrap an async route so thrown errors become 400/500s instead of crashing. */
 const handler =
   (fn: (req: Request, res: Response) => Promise<void>) =>
   (req: Request, res: Response) => {
@@ -22,10 +52,13 @@ const handler =
     });
   };
 
-// --- HEALTH ---
+// --- HEALTH (public) ---
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Everything below /api requires a valid Supabase access token.
+app.use('/api', requireAuth);
 
 // ========================= LEADS =========================
 app.get(
@@ -48,6 +81,7 @@ app.get(
 
 app.post(
   '/api/leads',
+  validate(leadCreateSchema),
   handler(async (req, res) => {
     const lead = await prisma.lead.create({ data: req.body });
     res.status(201).json(lead);
@@ -56,6 +90,7 @@ app.post(
 
 app.put(
   '/api/leads/:id',
+  validate(leadUpdateSchema),
   handler(async (req, res) => {
     const lead = await prisma.lead.update({ where: { id: req.params.id }, data: req.body });
     res.json(lead);
@@ -94,6 +129,7 @@ app.get(
 
 app.post(
   '/api/meetings',
+  validate(meetingCreateSchema),
   handler(async (req, res) => {
     const meeting = await prisma.meeting.create({ data: req.body });
     res.status(201).json(meeting);
@@ -102,6 +138,7 @@ app.post(
 
 app.put(
   '/api/meetings/:id',
+  validate(meetingUpdateSchema),
   handler(async (req, res) => {
     const meeting = await prisma.meeting.update({ where: { id: req.params.id }, data: req.body });
     res.json(meeting);
@@ -137,6 +174,7 @@ app.get(
 
 app.post(
   '/api/clients',
+  validate(clientCreateSchema),
   handler(async (req, res) => {
     const client = await prisma.keyClient.create({ data: req.body });
     res.status(201).json(client);
@@ -145,6 +183,7 @@ app.post(
 
 app.put(
   '/api/clients/:id',
+  validate(clientUpdateSchema),
   handler(async (req, res) => {
     const client = await prisma.keyClient.update({ where: { id: req.params.id }, data: req.body });
     res.json(client);
@@ -160,4 +199,7 @@ app.delete(
 );
 
 const PORT = process.env.PORT || 5050;
+if (process.env.AUTH_DISABLED === 'true') {
+  console.warn('⚠️  AUTH_DISABLED=true — API is UNAUTHENTICATED. Never use this in production.');
+}
 app.listen(PORT, () => console.log(`CRM Backend running on port ${PORT}`));

@@ -7,16 +7,30 @@ import type {
   MeetingInput,
 } from '@/types'
 
+import { supabase } from './supabase'
+
 // Base URL for the API.
 //   - Local dev / Vercel rewrite: leave VITE_API_URL unset → same-origin "/api/*".
 //   - Direct cross-origin backend: set VITE_API_URL="https://api.example.com"
 //     (the backend must allow this origin via CORS_ORIGIN).
 export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
+/** Attach the current Supabase access token (when auth is enabled). */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return {}
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function http<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeaders()),
+      ...options?.headers,
+    },
   })
   if (!res.ok) {
     let message = `Request failed (${res.status})`

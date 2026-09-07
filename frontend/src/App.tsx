@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Activity, Building2 } from 'lucide-react'
+import { Activity, Building2, LogOut, Loader2 } from 'lucide-react'
 import { API_BASE } from '@/lib/api'
+import { useAuth, authEnabled } from '@/auth/AuthProvider'
+import { Login } from '@/auth/Login'
 import { StatCards } from '@/components/StatCards'
 import { LeadsBoard } from '@/components/leads/LeadsBoard'
 import { MeetingsCalendar } from '@/components/meetings/MeetingsCalendar'
 import { ClientsGrid } from '@/components/clients/ClientsGrid'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type Health = { status: string }
@@ -32,6 +35,20 @@ function ApiStatus() {
 }
 
 export default function App() {
+  const { ready, session, email, signOut } = useAuth()
+
+  // Auth gate (only when Supabase is configured).
+  if (authEnabled && !ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+  if (authEnabled && !session) {
+    return <Login />
+  }
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background">
@@ -42,7 +59,18 @@ export default function App() {
             </span>
             <span className="font-heading text-lg font-semibold">Hosted CRM</span>
           </div>
-          <ApiStatus />
+          <div className="flex items-center gap-4">
+            <ApiStatus />
+            {authEnabled && email && (
+              <>
+                <span className="hidden text-sm text-muted-foreground sm:inline">{email}</span>
+                <Button variant="outline" size="sm" onClick={() => signOut()}>
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

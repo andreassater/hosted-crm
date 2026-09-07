@@ -18,6 +18,39 @@ A production setup for the Hosted CRM:
   automatically on deploy (`prisma migrate deploy`).
 - **Database:** managed **PostgreSQL** with a pooled connection for the app and a
   direct connection for migrations.
+- **Auth:** **Supabase Auth** — the SPA signs users in and sends a JWT; the Express API
+  verifies it on every request. Single-tenant (internal team; all authenticated users see all data).
+
+---
+
+## 0. Authentication & security (Supabase Auth)
+
+The API is closed by default: every `/api/*` route except `/api/health` requires a valid
+Supabase access token (verified via the project's JWKS in
+[`backend/src/auth.ts`](backend/src/auth.ts)). Requests are also protected by Helmet security
+headers, CORS allowlisting, rate limiting, and Zod input validation.
+
+**Set up Supabase Auth (one time):**
+1. In your Supabase project → **Authentication → Providers → Email**: enable it. For an
+   internal-only tool, **turn off "Allow new users to sign up"** and add teammates via
+   **Authentication → Users → Add user / Invite** (they get an email to set a password).
+2. (Optional but recommended) also set `ALLOWED_EMAIL_DOMAIN=axessgroup.com` on the backend so
+   only your domain's emails are accepted even if a stray account exists.
+3. Copy **Project URL** and the **anon public key** from **Project Settings → API**.
+
+**Wire it up:**
+- Backend env: `SUPABASE_URL=https://<ref>.supabase.co` (and optionally `ALLOWED_EMAIL_DOMAIN`).
+  Remove `AUTH_DISABLED` in production — leaving it `true` disables all auth.
+- Frontend env (Vercel): `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`. When both are set the
+  app shows a login screen; when unset it runs unauthenticated (local review only).
+
+> **Local review without auth:** the backend `.env` ships with `AUTH_DISABLED=true` and the
+> frontend has no `VITE_SUPABASE_*`, so `localhost` works without login. Both flip to enforced
+> automatically once the Supabase env vars are set — do that before going live.
+
+**Still on the security roadmap** (not yet implemented): per-user roles (e.g. view-only vs.
+admin-delete), an audit trail of who changed what, and automated database backups. Ask if you
+want these next.
 
 ---
 
@@ -130,18 +163,23 @@ Config lives in [`frontend/vercel.json`](frontend/vercel.json).
 
 | Variable         | Required | Notes                                                             |
 | ---------------- | -------- | ----------------------------------------------------------------- |
-| `DATABASE_URL`   | ✅       | Pooled connection for the app.                                    |
-| `DIRECT_URL`     | ✅       | Direct connection for migrations.                                 |
-| `CORS_ORIGIN`    | prod     | Comma-separated allowed origins. Unset = allow all.               |
-| `PORT`           | auto     | Injected by the platform; don't hardcode.                         |
-| `RUN_MIGRATIONS` | optional | `false` to skip auto-migrate on start (see multi-replica note).   |
-| `NODE_ENV`       | optional | `production`.                                                     |
+| `DATABASE_URL`         | ✅       | Pooled connection for the app.                                    |
+| `DIRECT_URL`           | ✅       | Direct connection for migrations.                                 |
+| `SUPABASE_URL`         | ✅ prod  | Supabase project URL; its JWKS verifies access tokens.            |
+| `ALLOWED_EMAIL_DOMAIN` | optional | Restrict accepted users to this email domain (e.g. `axessgroup.com`). |
+| `CORS_ORIGIN`          | prod     | Comma-separated allowed origins. Unset = allow all.               |
+| `AUTH_DISABLED`        | dev only | `true` bypasses auth. **Never set in production.**                |
+| `PORT`                 | auto     | Injected by the platform; don't hardcode.                         |
+| `RUN_MIGRATIONS`       | optional | `false` to skip auto-migrate on start (see multi-replica note).   |
+| `NODE_ENV`             | optional | `production`.                                                     |
 
 **Frontend** (Vercel):
 
-| Variable       | Required | Notes                                                     |
-| -------------- | -------- | --------------------------------------------------------- |
-| `VITE_API_URL` | optional | Only for the cross-origin option; unset when using the rewrite. |
+| Variable                  | Required | Notes                                                     |
+| ------------------------- | -------- | --------------------------------------------------------- |
+| `VITE_API_URL`            | optional | Only for the cross-origin option; unset when using the rewrite. |
+| `VITE_SUPABASE_URL`       | ✅ prod  | Supabase project URL (enables the login screen).          |
+| `VITE_SUPABASE_ANON_KEY`  | ✅ prod  | Supabase anon public key.                                 |
 
 ---
 
@@ -197,6 +235,8 @@ Notes:
 ## 8. Deploy checklist
 
 - [ ] Postgres provisioned; `DATABASE_URL` + `DIRECT_URL` captured.
+- [ ] Supabase Auth configured: email provider on, public sign-up **off**, team invited.
+- [ ] Backend has `SUPABASE_URL` set and **no** `AUTH_DISABLED`; frontend has `VITE_SUPABASE_*`.
 - [ ] Backend deployed on Railway/Render (root dir `backend`), env vars set.
 - [ ] `/api/health` returns `{"status":"ok"}` on the public backend URL.
 - [ ] `frontend/vercel.json` rewrite points at the backend URL (or `VITE_API_URL` set).
