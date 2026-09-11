@@ -131,7 +131,7 @@ export function LeadDialog({ open, onOpenChange, lead }: Props) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="lead-value">Value (USD)</Label>
+                <Label htmlFor="lead-value">Value (NOK)</Label>
                 <Input
                   id="lead-value"
                   type="number"

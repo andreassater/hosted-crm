@@ -130,7 +130,7 @@ export function ClientDialog({ open, onOpenChange, client }: Props) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="client-revenue">Annual revenue (USD)</Label>
+                <Label htmlFor="client-revenue">Annual revenue (NOK)</Label>
                 <Input
                   id="client-revenue"
                   type="number"

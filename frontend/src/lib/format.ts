@@ -1,21 +1,21 @@
-const currency = new Intl.NumberFormat('en-US', {
+const currency = new Intl.NumberFormat('nb-NO', {
   style: 'currency',
-  currency: 'USD',
+  currency: 'NOK',
   maximumFractionDigits: 0,
 })
 
-/** Format a numeric string/number as USD (no cents). */
+/** Format a numeric string/number as NOK (no øre). */
 export function formatCurrency(value: string | number): string {
   const n = typeof value === 'string' ? Number(value) : value
   return currency.format(Number.isFinite(n) ? n : 0)
 }
 
-/** Compact currency, e.g. $1.2M. */
+/** Compact currency, e.g. 1,2 mill. kr. */
 export function formatCompactCurrency(value: string | number): string {
   const n = typeof value === 'string' ? Number(value) : value
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('nb-NO', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NOK',
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(Number.isFinite(n) ? n : 0)
