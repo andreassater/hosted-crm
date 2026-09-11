@@ -28,6 +28,20 @@ enum MeetingStatus {
   CANCELLED
 }
 
+enum SuggestionCategory {
+  FEATURE
+  IMPROVEMENT
+  BUG
+  OTHER
+}
+
+enum SuggestionStatus {
+  NEW
+  PLANNED
+  DONE
+  DECLINED
+}
+
 model Lead {
   id        String     @id @default(uuid())
   name      String
@@ -67,4 +81,15 @@ model Meeting {
   client      KeyClient?    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+// User-submitted tips for improving the app.
+model Suggestion {
+  id          String             @id @default(uuid())
+  message     String
+  category    SuggestionCategory @default(IMPROVEMENT)
+  status      SuggestionStatus   @default(NEW)
+  submittedBy String? // email of the submitter, set from the auth token
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 }

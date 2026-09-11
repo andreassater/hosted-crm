@@ -5,6 +5,10 @@ import type {
   ClientInput,
   Meeting,
   MeetingInput,
+  Suggestion,
+  SuggestionInput,
+  SuggestionCategory,
+  SuggestionStatus,
 } from '@/types'
 
 import { supabase } from './supabase'
@@ -86,4 +90,15 @@ export const meetingsApi = {
   update: (id: string, data: Partial<MeetingInput>) =>
     http<Meeting>(`/api/meetings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id: string) => http<void>(`/api/meetings/${id}`, { method: 'DELETE' }),
+}
+
+// --- Suggestions (improvement tips) ---
+export const suggestionsApi = {
+  list: (filters: { status?: string; category?: string } = {}) =>
+    http<Suggestion[]>(`/api/suggestions${qs(filters)}`),
+  create: (data: SuggestionInput) =>
+    http<Suggestion>('/api/suggestions', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { status?: SuggestionStatus; category?: SuggestionCategory }) =>
+    http<Suggestion>(`/api/suggestions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => http<void>(`/api/suggestions/${id}`, { method: 'DELETE' }),
 }

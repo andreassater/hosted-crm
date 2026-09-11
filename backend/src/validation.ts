@@ -36,6 +36,15 @@ export const meetingCreateSchema = z.object({
 });
 export const meetingUpdateSchema = meetingCreateSchema.partial();
 
+export const suggestionCreateSchema = z.object({
+  message: z.string().min(1).max(2000),
+  category: z.enum(['FEATURE', 'IMPROVEMENT', 'BUG', 'OTHER']).default('IMPROVEMENT'),
+});
+export const suggestionUpdateSchema = z.object({
+  status: z.enum(['NEW', 'PLANNED', 'DONE', 'DECLINED']).optional(),
+  category: z.enum(['FEATURE', 'IMPROVEMENT', 'BUG', 'OTHER']).optional(),
+});
+
 /** Express middleware: validate & normalize req.body against a schema, or 400. */
 export const validate =
   (schema: ZodType) => (req: Request, res: Response, next: NextFunction) => {

@@ -80,3 +80,29 @@ export type MeetingInput = {
   leadId?: string | null
   clientId?: string | null
 }
+
+export type SuggestionCategory = 'FEATURE' | 'IMPROVEMENT' | 'BUG' | 'OTHER'
+export type SuggestionStatus = 'NEW' | 'PLANNED' | 'DONE' | 'DECLINED'
+
+export const SUGGESTION_CATEGORIES: SuggestionCategory[] = [
+  'FEATURE',
+  'IMPROVEMENT',
+  'BUG',
+  'OTHER',
+]
+export const SUGGESTION_STATUSES: SuggestionStatus[] = ['NEW', 'PLANNED', 'DONE', 'DECLINED']
+
+export interface Suggestion {
+  id: string
+  message: string
+  category: SuggestionCategory
+  status: SuggestionStatus
+  submittedBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type SuggestionInput = {
+  message: string
+  category: SuggestionCategory
+}

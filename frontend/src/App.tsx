@@ -7,6 +7,7 @@ import { StatCards } from '@/components/StatCards'
 import { LeadsBoard } from '@/components/leads/LeadsBoard'
 import { MeetingsCalendar } from '@/components/meetings/MeetingsCalendar'
 import { ClientsGrid } from '@/components/clients/ClientsGrid'
+import { SuggestionsBoard } from '@/components/suggestions/SuggestionsBoard'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -90,6 +91,7 @@ export default function App() {
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="meetings">Meetings</TabsTrigger>
             <TabsTrigger value="clients">Key Clients</TabsTrigger>
+            <TabsTrigger value="feedback">Tilbakemelding</TabsTrigger>
           </TabsList>
           <TabsContent value="leads" className="mt-5">
             <LeadsBoard />
@@ -99,6 +101,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="clients" className="mt-5">
             <ClientsGrid />
+          </TabsContent>
+          <TabsContent value="feedback" className="mt-5">
+            <SuggestionsBoard />
           </TabsContent>
         </Tabs>
       </main>

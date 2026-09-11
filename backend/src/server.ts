@@ -13,6 +13,8 @@ import {
   clientUpdateSchema,
   meetingCreateSchema,
   meetingUpdateSchema,
+  suggestionCreateSchema,
+  suggestionUpdateSchema,
 } from './validation';
 
 const prisma = new PrismaClient();
@@ -194,6 +196,56 @@ app.delete(
   '/api/clients/:id',
   handler(async (req, res) => {
     await prisma.keyClient.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  })
+);
+
+// ========================= SUGGESTIONS (improvement tips) =========================
+app.get(
+  '/api/suggestions',
+  handler(async (req, res) => {
+    const { status, category } = req.query;
+    const where: Prisma.SuggestionWhereInput = {};
+    if (typeof status === 'string' && status)
+      where.status = status as Prisma.SuggestionWhereInput['status'];
+    if (typeof category === 'string' && category)
+      where.category = category as Prisma.SuggestionWhereInput['category'];
+    const suggestions = await prisma.suggestion.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(suggestions);
+  })
+);
+
+app.post(
+  '/api/suggestions',
+  validate(suggestionCreateSchema),
+  handler(async (req, res) => {
+    // The submitter is taken from the verified token, never from the client.
+    const suggestion = await prisma.suggestion.create({
+      data: { ...req.body, submittedBy: req.user?.email ?? null },
+    });
+    res.status(201).json(suggestion);
+  })
+);
+
+app.put(
+  '/api/suggestions/:id',
+  validate(suggestionUpdateSchema),
+  handler(async (req, res) => {
+    const suggestion = await prisma.suggestion.update({
+      where: { id: req.params.id },
+      data: req.body,
+    });
+    res.json(suggestion);
+  })
+);
+
+app.delete(
+  '/api/suggestions/:id',
+  handler(async (req, res) => {
+    await prisma.suggestion.delete({ where: { id: req.params.id } });
     res.status(204).end();
   })
 );
