@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Pencil, Trash2, Crown, Mail, Phone, History, ChevronDown } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Crown, Mail, Phone, History, ChevronDown, User as UserIcon, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { clientsApi } from '@/lib/api'
 import { CLIENT_TIERS } from '@/types'
 import type { KeyClient } from '@/types'
 import { tierClass } from '@/lib/status'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatDateNo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ClientDialog } from './ClientDialog'
-import { ActivityTimeline } from '@/components/activities/ActivityTimeline'
+import { AccountPanel } from '@/components/accounts/AccountPanel'
+import { useAccountFilters } from '@/components/accounts/AccountFilters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,15 +30,19 @@ export function ClientsGrid() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<KeyClient | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const { params: filterParams, element: filterElement } = useAccountFilters()
 
   const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['clients', { tier, search }],
+    queryKey: ['clients', { tier, search, ...filterParams }],
     queryFn: () =>
       clientsApi.list({
         tier: tier === ALL ? undefined : tier,
         search: search || undefined,
+        ...filterParams,
       }),
   })
+
+  const inactiveThreshold = Number(filterParams.inactiveDays) || 30
 
   const remove = useMutation({
     mutationFn: (id: string) => clientsApi.remove(id),
@@ -90,6 +95,8 @@ export function ClientsGrid() {
         </Button>
       </div>
 
+      {filterElement}
+
       {isLoading ? (
         <p className="py-10 text-center text-muted-foreground">Loading…</p>
       ) : clients.length === 0 ? (
@@ -139,6 +146,34 @@ export function ClientsGrid() {
               <h3 className="mt-3 font-heading text-lg font-semibold">{client.companyName}</h3>
               <p className="text-sm text-muted-foreground">{client.primaryContact}</p>
 
+              {(() => {
+                const inactive =
+                  !client.lastActivityAt ||
+                  Date.now() - new Date(client.lastActivityAt).getTime() >
+                    inactiveThreshold * 864e5
+                return (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <UserIcon className="h-3.5 w-3.5" />
+                      {client.owner ? client.owner.name || client.owner.email : 'Uten eier'}
+                    </span>
+                    {!!client.openTaskCount && (
+                      <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">
+                        {client.openTaskCount} åpne oppgaver
+                      </span>
+                    )}
+                    {inactive && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
+                        <AlertTriangle className="h-3 w-3" />
+                        {client.lastActivityAt
+                          ? `Inaktiv siden ${formatDateNo(client.lastActivityAt)}`
+                          : 'Ingen aktivitet'}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Mail className="h-3.5 w-3.5" />
@@ -178,7 +213,7 @@ export function ClientsGrid() {
 
               {expandedId === client.id && (
                 <div className="mt-3 border-t pt-4">
-                  <ActivityTimeline clientId={client.id} name={client.companyName} />
+                  <AccountPanel clientId={client.id} name={client.companyName} />
                 </div>
               )}
             </div>

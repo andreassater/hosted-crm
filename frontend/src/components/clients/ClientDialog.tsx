@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { clientsApi } from '@/lib/api'
 import { CLIENT_TIERS } from '@/types'
 import type { KeyClient, ClientInput } from '@/types'
+import { useAuth } from '@/auth/AuthProvider'
+import { OwnerSelect } from '@/components/users/OwnerSelect'
 import {
   Dialog,
   DialogContent,
@@ -37,10 +39,12 @@ const empty: ClientInput = {
   phone: '',
   tier: 'Gold',
   annualRevenue: 0,
+  ownerId: null,
 }
 
 export function ClientDialog({ open, onOpenChange, client }: Props) {
   const qc = useQueryClient()
+  const { userId } = useAuth()
   const [form, setForm] = useState<ClientInput>(empty)
   const isEdit = Boolean(client)
 
@@ -55,11 +59,12 @@ export function ClientDialog({ open, onOpenChange, client }: Props) {
               phone: client.phone ?? '',
               tier: client.tier,
               annualRevenue: Number(client.annualRevenue),
+              ownerId: client.ownerId,
             }
-          : empty
+          : { ...empty, ownerId: userId } // default new accounts to the creator
       )
     }
-  }, [open, client])
+  }, [open, client, userId])
 
   const mutation = useMutation({
     mutationFn: (data: ClientInput) =>
@@ -155,6 +160,10 @@ export function ClientDialog({ open, onOpenChange, client }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Eier</Label>
+              <OwnerSelect value={form.ownerId ?? null} onChange={(v) => set('ownerId', v)} />
             </div>
           </div>
 

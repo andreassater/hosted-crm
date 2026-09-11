@@ -51,6 +51,25 @@ enum ActivityType {
   OTHER
 }
 
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+// Lightweight roster of app users, auto-populated from the Supabase token on login.
+// Owners and task assignees reference this table.
+model User {
+  id         String   @id // Supabase auth uid (JWT sub)
+  email      String   @unique
+  name       String?
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  ownedLeads   Lead[]      @relation("LeadOwner")
+  ownedClients KeyClient[] @relation("ClientOwner")
+  tasks        Task[]      @relation("TaskAssignee")
+}
+
 model Lead {
   id        String     @id @default(uuid())
   name      String
@@ -63,6 +82,11 @@ model Lead {
   updatedAt DateTime   @updatedAt
   meetings  Meeting[]
   activities Activity[]
+  tasks     Task[]
+  ownerId   String?
+  owner     User?      @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
 }
 
 model KeyClient {
@@ -77,6 +101,11 @@ model KeyClient {
   updatedAt      DateTime  @updatedAt
   meetings       Meeting[]
   activities     Activity[]
+  tasks          Task[]
+  ownerId        String?
+  owner          User?     @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
 }
 
 model Meeting {
@@ -130,6 +159,35 @@ model Activity {
   updatedAt DateTime @updatedAt
 
   @@index([followUpAt])
+  @@index([leadId])
+  @@index([clientId])
+}
+
+// A to-do that can be assigned to any user and optionally linked to a lead/client.
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      TaskStatus @default(OPEN)
+  completedAt DateTime?
+
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  // Optional link — a task may stand alone or belong to one lead or client.
+  leadId   String?
+  lead     Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   KeyClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdBy String? // email, set from the auth token
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
   @@index([leadId])
   @@index([clientId])
 }

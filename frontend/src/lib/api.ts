@@ -13,6 +13,10 @@ import type {
   ActivityInput,
   TimelineItem,
   FollowUp,
+  User,
+  Task,
+  TaskInput,
+  TaskStatus,
 } from '@/types'
 
 import { supabase } from './supabase'
@@ -63,9 +67,16 @@ function qs(params: Record<string, string | undefined>): string {
   return s ? `?${s}` : ''
 }
 
+type AccountFilters = {
+  search?: string
+  owner?: string // 'none' | 'me' | <userId>
+  overdueTasks?: string // 'true'
+  inactiveDays?: string
+}
+
 // --- Leads ---
 export const leadsApi = {
-  list: (filters: { status?: string; search?: string } = {}) =>
+  list: (filters: { status?: string } & AccountFilters = {}) =>
     http<Lead[]>(`/api/leads${qs(filters)}`),
   create: (data: LeadInput) =>
     http<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(data) }),
@@ -76,7 +87,7 @@ export const leadsApi = {
 
 // --- Key Clients ---
 export const clientsApi = {
-  list: (filters: { tier?: string; search?: string } = {}) =>
+  list: (filters: { tier?: string } & AccountFilters = {}) =>
     http<KeyClient[]>(`/api/clients${qs(filters)}`),
   create: (data: ClientInput) =>
     http<KeyClient>('/api/clients', { method: 'POST', body: JSON.stringify(data) }),
@@ -121,4 +132,27 @@ export const activitiesApi = {
   timeline: (filters: { leadId?: string; clientId?: string }) =>
     http<TimelineItem[]>(`/api/timeline${qs(filters)}`),
   followups: () => http<FollowUp[]>('/api/followups'),
+}
+
+// --- Users (team roster) ---
+export const usersApi = {
+  list: () => http<User[]>('/api/users'),
+}
+
+// --- Tasks ---
+export const tasksApi = {
+  list: (
+    filters: {
+      assignee?: string // 'me' | 'none' | <userId>
+      status?: TaskStatus
+      scope?: string // 'overdue'
+      leadId?: string
+      clientId?: string
+    } = {}
+  ) => http<Task[]>(`/api/tasks${qs(filters)}`),
+  create: (data: TaskInput) =>
+    http<Task>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<TaskInput>) =>
+    http<Task>(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => http<void>(`/api/tasks/${id}`, { method: 'DELETE' }),
 }

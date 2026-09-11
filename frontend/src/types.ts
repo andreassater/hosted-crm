@@ -14,6 +14,13 @@ export const MEETING_STATUSES: MeetingStatus[] = ['SCHEDULED', 'COMPLETED', 'CAN
 export const CLIENT_TIERS = ['Gold', 'Platinum', 'Strategic'] as const
 export type ClientTier = (typeof CLIENT_TIERS)[number]
 
+// Team roster entry (from Supabase, mirrored locally).
+export interface User {
+  id: string
+  email: string
+  name: string | null
+}
+
 export interface Lead {
   id: string
   name: string
@@ -22,6 +29,10 @@ export interface Lead {
   phone: string | null
   status: LeadStatus
   value: string // Prisma Decimal is serialized as a string over JSON
+  ownerId: string | null
+  owner?: User | null // included on list responses
+  openTaskCount?: number // open tasks, annotated on list responses
+  lastActivityAt?: string | null // latest activity/meeting, for inactivity flags
   createdAt: string
   updatedAt: string
 }
@@ -34,6 +45,10 @@ export interface KeyClient {
   phone: string | null
   tier: string
   annualRevenue: string
+  ownerId: string | null
+  owner?: User | null
+  openTaskCount?: number
+  lastActivityAt?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -60,6 +75,7 @@ export type LeadInput = {
   phone?: string | null
   status: LeadStatus
   value: number
+  ownerId?: string | null
 }
 
 export type ClientInput = {
@@ -69,6 +85,7 @@ export type ClientInput = {
   phone?: string | null
   tier: string
   annualRevenue: number
+  ownerId?: string | null
 }
 
 export type MeetingInput = {
@@ -164,4 +181,37 @@ export interface TimelineItem {
 export interface FollowUp extends Activity {
   lead: Lead | null
   client: KeyClient | null
+}
+
+// --- Tasks & ownership ---
+export type TaskStatus = 'OPEN' | 'DONE'
+export const TASK_STATUSES: TaskStatus[] = ['OPEN', 'DONE']
+
+export interface Task {
+  id: string
+  title: string
+  description: string | null
+  dueDate: string | null
+  status: TaskStatus
+  completedAt: string | null
+  assigneeId: string | null
+  assignee?: User | null
+  leadId: string | null
+  clientId: string | null
+  // Minimal parent context, included on list responses.
+  lead?: { id: string; name: string; company: string } | null
+  client?: { id: string; companyName: string } | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type TaskInput = {
+  title: string
+  description?: string | null
+  dueDate?: string | null
+  status?: TaskStatus
+  assigneeId?: string | null
+  leadId?: string | null
+  clientId?: string | null
 }

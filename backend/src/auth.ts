@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { prisma } from './db';
 
 // Augment Express's Request so handlers can read the authenticated user.
 declare global {
@@ -53,7 +54,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return res.status(403).json({ error: 'Account not permitted' });
     }
 
-    req.user = { id: String(payload.sub), email };
+    const id = String(payload.sub);
+    req.user = { id, email };
+
+    // Keep the local user roster in sync (owners/assignees reference it). Best-effort:
+    // a roster hiccup must never block an otherwise-authenticated request.
+    if (email) {
+      const meta = (payload.user_metadata ?? {}) as Record<string, unknown>;
+      const name =
+        (typeof meta.name === 'string' && meta.name) ||
+        (typeof meta.full_name === 'string' && meta.full_name) ||
+        null;
+      try {
+        await prisma.user.upsert({
+          where: { id },
+          create: { id, email, name },
+          update: { email, lastSeenAt: new Date(), ...(name ? { name } : {}) },
+        });
+      } catch {
+        /* ignore roster write failures */
+      }
+    }
+
     return next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

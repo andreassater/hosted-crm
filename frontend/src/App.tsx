@@ -11,6 +11,7 @@ import { FeedbackWidget } from '@/components/feedback/FeedbackWidget'
 import { FeedbackLog } from '@/components/feedback/FeedbackLog'
 import { FollowUpsBoard } from '@/components/activities/FollowUpsBoard'
 import { FollowUpBell } from '@/components/activities/FollowUpBell'
+import { TasksBoard, useMyOverdueCount } from '@/components/tasks/TasksBoard'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -41,6 +42,7 @@ function ApiStatus() {
 export default function App() {
   const { ready, session, email, signOut } = useAuth()
   const [tab, setTab] = useState('leads')
+  const myOverdue = useMyOverdueCount()
 
   // Auth gate (only when Supabase is configured).
   if (authEnabled && !ready) {
@@ -97,6 +99,14 @@ export default function App() {
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="meetings">Meetings</TabsTrigger>
             <TabsTrigger value="clients">Key Clients</TabsTrigger>
+            <TabsTrigger value="tasks">
+              Oppgaver
+              {myOverdue > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-medium text-white">
+                  {myOverdue}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="followups">Oppfølging</TabsTrigger>
           </TabsList>
           <TabsContent value="leads" className="mt-5">
@@ -107,6 +117,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="clients" className="mt-5">
             <ClientsGrid />
+          </TabsContent>
+          <TabsContent value="tasks" className="mt-5">
+            <TasksBoard />
           </TabsContent>
           <TabsContent value="followups" className="mt-5">
             <FollowUpsBoard />

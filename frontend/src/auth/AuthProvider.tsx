@@ -8,6 +8,7 @@ type AuthState = {
   ready: boolean
   session: Session | null
   email: string | null
+  userId: string | null
   signOut: () => Promise<void>
 }
 
@@ -34,7 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ready, session, email: session?.user.email ?? null, signOut }}
+      value={{
+        ready,
+        session,
+        email: session?.user.email ?? null,
+        userId: session?.user.id ?? null,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

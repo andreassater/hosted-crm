@@ -6,6 +6,8 @@ import { leadsApi } from '@/lib/api'
 import { LEAD_STATUSES } from '@/types'
 import type { Lead, LeadInput, LeadStatus } from '@/types'
 import { LEAD_STATUS_LABEL } from '@/lib/status'
+import { useAuth } from '@/auth/AuthProvider'
+import { OwnerSelect } from '@/components/users/OwnerSelect'
 import {
   Dialog,
   DialogContent,
@@ -38,10 +40,12 @@ const empty: LeadInput = {
   phone: '',
   status: 'NEW',
   value: 0,
+  ownerId: null,
 }
 
 export function LeadDialog({ open, onOpenChange, lead }: Props) {
   const qc = useQueryClient()
+  const { userId } = useAuth()
   const [form, setForm] = useState<LeadInput>(empty)
   const isEdit = Boolean(lead)
 
@@ -56,11 +60,12 @@ export function LeadDialog({ open, onOpenChange, lead }: Props) {
               phone: lead.phone ?? '',
               status: lead.status,
               value: Number(lead.value),
+              ownerId: lead.ownerId,
             }
-          : empty
+          : { ...empty, ownerId: userId } // default new leads to the creator
       )
     }
-  }, [open, lead])
+  }, [open, lead, userId])
 
   const mutation = useMutation({
     mutationFn: (data: LeadInput) =>
@@ -159,6 +164,10 @@ export function LeadDialog({ open, onOpenChange, lead }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Eier</Label>
+              <OwnerSelect value={form.ownerId ?? null} onChange={(v) => set('ownerId', v)} />
             </div>
           </div>
 

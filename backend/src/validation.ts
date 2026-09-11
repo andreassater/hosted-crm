@@ -12,6 +12,7 @@ export const leadCreateSchema = z.object({
   phone: z.string().max(50).nullish(),
   status: z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'LOST']).default('NEW'),
   value: z.number().nonnegative().max(1_000_000_000).default(0),
+  ownerId: z.string().uuid().nullish(),
 });
 export const leadUpdateSchema = leadCreateSchema.partial();
 
@@ -22,6 +23,7 @@ export const clientCreateSchema = z.object({
   phone: z.string().max(50).nullish(),
   tier: z.string().min(1).max(50).default('Gold'),
   annualRevenue: z.number().nonnegative().max(1_000_000_000_000).default(0),
+  ownerId: z.string().uuid().nullish(),
 });
 export const clientUpdateSchema = clientCreateSchema.partial();
 
@@ -67,6 +69,30 @@ export const activityCreateSchema = activityBase.refine(exactlyOneParent, {
 // Update: any subset of fields, plus the ability to complete/reopen a follow-up.
 export const activityUpdateSchema = activityBase.partial().extend({
   followUpDone: z.boolean().optional(),
+});
+
+// A task links to at most one of a lead or a client (or neither — standalone).
+const taskBase = z.object({
+  title: z.string().min(1).max(300),
+  description: z.string().max(2000).nullish(),
+  dueDate: z.coerce.date().nullish(),
+  status: z.enum(['OPEN', 'DONE']).default('OPEN'),
+  assigneeId: z.string().uuid().nullish(),
+  leadId: z.string().uuid().nullish(),
+  clientId: z.string().uuid().nullish(),
+});
+
+const notBothParents = (d: { leadId?: string | null; clientId?: string | null }) =>
+  !(d.leadId && d.clientId);
+
+export const taskCreateSchema = taskBase.refine(notBothParents, {
+  message: 'A task can link to at most one of leadId or clientId',
+  path: ['leadId'],
+});
+
+export const taskUpdateSchema = taskBase.partial().refine(notBothParents, {
+  message: 'A task can link to at most one of leadId or clientId',
+  path: ['leadId'],
 });
 
 /** Express middleware: validate & normalize req.body against a schema, or 400. */

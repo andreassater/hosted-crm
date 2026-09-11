@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Pencil, Trash2, History } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, History, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { leadsApi } from '@/lib/api'
 import { LEAD_STATUSES } from '@/types'
@@ -9,7 +9,8 @@ import { LEAD_STATUS_LABEL, LEAD_STATUS_CLASS } from '@/lib/status'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { LeadDialog } from './LeadDialog'
-import { ActivityTimeline } from '@/components/activities/ActivityTimeline'
+import { AccountPanel } from '@/components/accounts/AccountPanel'
+import { useAccountFilters } from '@/components/accounts/AccountFilters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -37,13 +38,15 @@ export function LeadsBoard() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Lead | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const { params: filterParams, element: filterElement } = useAccountFilters()
 
   const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['leads', { status, search }],
+    queryKey: ['leads', { status, search, ...filterParams }],
     queryFn: () =>
       leadsApi.list({
         status: status === ALL ? undefined : status,
         search: search || undefined,
+        ...filterParams,
       }),
   })
 
@@ -98,6 +101,8 @@ export function LeadsBoard() {
         </Button>
       </div>
 
+      {filterElement}
+
       <div className="overflow-x-auto rounded-xl ring-1 ring-foreground/10">
         <Table>
           <TableHeader>
@@ -105,20 +110,21 @@ export function LeadsBoard() {
               <TableHead>Name</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Owner</TableHead>
               <TableHead className="text-right">Value</TableHead>
-              <TableHead className="w-24 text-right">Actions</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                   No leads match your filters.
                 </TableCell>
               </TableRow>
@@ -127,7 +133,14 @@ export function LeadsBoard() {
                 <Fragment key={lead.id}>
                   <TableRow>
                     <TableCell>
-                      <div className="font-medium">{lead.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{lead.name}</span>
+                        {!!lead.openTaskCount && (
+                          <span className="inline-flex items-center rounded-full bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-700">
+                            {lead.openTaskCount} oppg.
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">{lead.email}</div>
                     </TableCell>
                     <TableCell>{lead.company}</TableCell>
@@ -139,6 +152,12 @@ export function LeadsBoard() {
                         )}
                       >
                         {LEAD_STATUS_LABEL[lead.status]}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                        <UserIcon className="h-3.5 w-3.5" />
+                        {lead.owner ? lead.owner.name || lead.owner.email : '—'}
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
@@ -180,8 +199,8 @@ export function LeadsBoard() {
                   </TableRow>
                   {expandedId === lead.id && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={5} className="bg-muted/30 p-4">
-                        <ActivityTimeline leadId={lead.id} name={`${lead.name} — ${lead.company}`} />
+                      <TableCell colSpan={6} className="bg-muted/30 p-4">
+                        <AccountPanel leadId={lead.id} name={`${lead.name} — ${lead.company}`} />
                       </TableCell>
                     </TableRow>
                   )}

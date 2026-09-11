@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from './db';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -17,9 +18,10 @@ import {
   suggestionUpdateSchema,
   activityCreateSchema,
   activityUpdateSchema,
+  taskCreateSchema,
+  taskUpdateSchema,
 } from './validation';
 
-const prisma = new PrismaClient();
 const app = express();
 
 // Behind Railway/Render/Vercel proxies — needed for correct client IPs (rate limiting).
@@ -56,6 +58,54 @@ const handler =
     });
   };
 
+/** Latest touchpoint (activity or meeting) per lead — powers inactivity flags. */
+async function lastActivityByLead(ids: string[]): Promise<Map<string, Date>> {
+  const map = new Map<string, Date>();
+  if (ids.length === 0) return map;
+  const [acts, meets] = await Promise.all([
+    prisma.activity.groupBy({ by: ['leadId'], where: { leadId: { in: ids } }, _max: { occurredAt: true } }),
+    prisma.meeting.groupBy({ by: ['leadId'], where: { leadId: { in: ids } }, _max: { startTime: true } }),
+  ]);
+  for (const a of acts) if (a.leadId && a._max.occurredAt) map.set(a.leadId, a._max.occurredAt);
+  for (const m of meets) {
+    if (!m.leadId || !m._max.startTime) continue;
+    const cur = map.get(m.leadId);
+    if (!cur || m._max.startTime > cur) map.set(m.leadId, m._max.startTime);
+  }
+  return map;
+}
+
+/** Latest touchpoint (activity or meeting) per client. */
+async function lastActivityByClient(ids: string[]): Promise<Map<string, Date>> {
+  const map = new Map<string, Date>();
+  if (ids.length === 0) return map;
+  const [acts, meets] = await Promise.all([
+    prisma.activity.groupBy({ by: ['clientId'], where: { clientId: { in: ids } }, _max: { occurredAt: true } }),
+    prisma.meeting.groupBy({ by: ['clientId'], where: { clientId: { in: ids } }, _max: { startTime: true } }),
+  ]);
+  for (const a of acts) if (a.clientId && a._max.occurredAt) map.set(a.clientId, a._max.occurredAt);
+  for (const m of meets) {
+    if (!m.clientId || !m._max.startTime) continue;
+    const cur = map.get(m.clientId);
+    if (!cur || m._max.startTime > cur) map.set(m.clientId, m._max.startTime);
+  }
+  return map;
+}
+
+/** Resolve an `owner`/`assignee` query value into a Prisma id filter. */
+function ownerFilter(value: unknown, meId?: string): string | null | undefined {
+  if (value === 'none') return null; // unassigned
+  if (value === 'me') return meId ?? '__none__';
+  if (typeof value === 'string' && value) return value;
+  return undefined; // no filter
+}
+
+/** Keep only rows whose last activity is older than `days` (or never active). */
+function filterInactive<T extends { lastActivityAt: string | null }>(rows: T[], days: number): T[] {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return rows.filter((r) => !r.lastActivityAt || new Date(r.lastActivityAt).getTime() < cutoff);
+}
+
 // --- HEALTH (public) ---
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -68,7 +118,7 @@ app.use('/api', requireAuth);
 app.get(
   '/api/leads',
   handler(async (req, res) => {
-    const { status, search } = req.query;
+    const { status, search, owner, overdueTasks, inactiveDays } = req.query;
     const where: Prisma.LeadWhereInput = {};
     if (typeof status === 'string' && status) where.status = status as Prisma.LeadWhereInput['status'];
     if (typeof search === 'string' && search) {
@@ -78,8 +128,29 @@ app.get(
         { email: { contains: search, mode: 'insensitive' } },
       ];
     }
-    const leads = await prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
-    res.json(leads);
+    const ownerId = ownerFilter(owner, req.user?.id);
+    if (ownerId !== undefined) where.ownerId = ownerId;
+    if (overdueTasks === 'true') {
+      where.tasks = { some: { status: 'OPEN', dueDate: { lt: new Date() } } };
+    }
+
+    const leads = await prisma.lead.findMany({
+      where,
+      include: { owner: true, _count: { select: { tasks: { where: { status: 'OPEN' } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const activity = await lastActivityByLead(leads.map((l) => l.id));
+    let rows = leads.map(({ _count, ...l }) => ({
+      ...l,
+      openTaskCount: _count.tasks,
+      lastActivityAt: activity.get(l.id)?.toISOString() ?? null,
+    }));
+
+    const days = Number(inactiveDays);
+    if (Number.isFinite(days) && days > 0) rows = filterInactive(rows, days);
+
+    res.json(rows);
   })
 );
 
@@ -87,7 +158,9 @@ app.post(
   '/api/leads',
   validate(leadCreateSchema),
   handler(async (req, res) => {
-    const lead = await prisma.lead.create({ data: req.body });
+    // Default the owner to the creator unless one was explicitly provided (incl. null).
+    const ownerId = req.body.ownerId === undefined ? (req.user?.id ?? null) : req.body.ownerId;
+    const lead = await prisma.lead.create({ data: { ...req.body, ownerId } });
     res.status(201).json(lead);
   })
 );
@@ -161,7 +234,7 @@ app.delete(
 app.get(
   '/api/clients',
   handler(async (req, res) => {
-    const { tier, search } = req.query;
+    const { tier, search, owner, overdueTasks, inactiveDays } = req.query;
     const where: Prisma.KeyClientWhereInput = {};
     if (typeof tier === 'string' && tier) where.tier = tier;
     if (typeof search === 'string' && search) {
@@ -171,8 +244,29 @@ app.get(
         { email: { contains: search, mode: 'insensitive' } },
       ];
     }
-    const clients = await prisma.keyClient.findMany({ where, orderBy: { companyName: 'asc' } });
-    res.json(clients);
+    const ownerId = ownerFilter(owner, req.user?.id);
+    if (ownerId !== undefined) where.ownerId = ownerId;
+    if (overdueTasks === 'true') {
+      where.tasks = { some: { status: 'OPEN', dueDate: { lt: new Date() } } };
+    }
+
+    const clients = await prisma.keyClient.findMany({
+      where,
+      include: { owner: true, _count: { select: { tasks: { where: { status: 'OPEN' } } } } },
+      orderBy: { companyName: 'asc' },
+    });
+
+    const activity = await lastActivityByClient(clients.map((c) => c.id));
+    let rows = clients.map(({ _count, ...c }) => ({
+      ...c,
+      openTaskCount: _count.tasks,
+      lastActivityAt: activity.get(c.id)?.toISOString() ?? null,
+    }));
+
+    const days = Number(inactiveDays);
+    if (Number.isFinite(days) && days > 0) rows = filterInactive(rows, days);
+
+    res.json(rows);
   })
 );
 
@@ -180,7 +274,8 @@ app.post(
   '/api/clients',
   validate(clientCreateSchema),
   handler(async (req, res) => {
-    const client = await prisma.keyClient.create({ data: req.body });
+    const ownerId = req.body.ownerId === undefined ? (req.user?.id ?? null) : req.body.ownerId;
+    const client = await prisma.keyClient.create({ data: { ...req.body, ownerId } });
     res.status(201).json(client);
   })
 );
@@ -370,6 +465,89 @@ app.get(
       orderBy: { followUpAt: 'asc' },
     });
     res.json(followups);
+  })
+);
+
+// ========================= USERS (team roster) =========================
+// Read-only roster for owner/assignee dropdowns. Populated automatically on login.
+app.get(
+  '/api/users',
+  handler(async (_req, res) => {
+    const users = await prisma.user.findMany({
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      select: { id: true, email: true, name: true },
+    });
+    res.json(users);
+  })
+);
+
+// Current authenticated user (id + email), so the frontend can filter "my tasks".
+app.get('/api/me', (req, res) => {
+  res.json(req.user ?? null);
+});
+
+// ========================= TASKS =========================
+app.get(
+  '/api/tasks',
+  handler(async (req, res) => {
+    const { assignee, status, scope, leadId, clientId } = req.query;
+    const where: Prisma.TaskWhereInput = {};
+
+    const assigneeId = ownerFilter(assignee, req.user?.id);
+    if (assigneeId !== undefined) where.assigneeId = assigneeId;
+    if (status === 'OPEN' || status === 'DONE') where.status = status;
+    if (typeof leadId === 'string' && leadId) where.leadId = leadId;
+    if (typeof clientId === 'string' && clientId) where.clientId = clientId;
+    if (scope === 'overdue') {
+      where.status = 'OPEN';
+      where.dueDate = { lt: new Date() };
+    }
+
+    const tasks = await prisma.task.findMany({
+      where,
+      include: {
+        assignee: { select: { id: true, email: true, name: true } },
+        lead: { select: { id: true, name: true, company: true } },
+        client: { select: { id: true, companyName: true } },
+      },
+      orderBy: [{ status: 'asc' }, { dueDate: { sort: 'asc', nulls: 'last' } }],
+    });
+    res.json(tasks);
+  })
+);
+
+app.post(
+  '/api/tasks',
+  validate(taskCreateSchema),
+  handler(async (req, res) => {
+    // Default the assignee to the creator unless one was explicitly provided (incl. null).
+    const assigneeId =
+      req.body.assigneeId === undefined ? (req.user?.id ?? null) : req.body.assigneeId;
+    const task = await prisma.task.create({
+      data: { ...req.body, assigneeId, createdBy: req.user?.email ?? null },
+    });
+    res.status(201).json(task);
+  })
+);
+
+app.put(
+  '/api/tasks/:id',
+  validate(taskUpdateSchema),
+  handler(async (req, res) => {
+    const data: Prisma.TaskUncheckedUpdateInput = { ...req.body };
+    // Keep completedAt in sync with status transitions.
+    if (req.body.status === 'DONE') data.completedAt = new Date();
+    if (req.body.status === 'OPEN') data.completedAt = null;
+    const task = await prisma.task.update({ where: { id: req.params.id }, data });
+    res.json(task);
+  })
+);
+
+app.delete(
+  '/api/tasks/:id',
+  handler(async (req, res) => {
+    await prisma.task.delete({ where: { id: req.params.id } });
+    res.status(204).end();
   })
 );
 
