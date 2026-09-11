@@ -12,7 +12,8 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
-    region: oregon
+    # EU region for GDPR / data residency — matches the Supabase DB in eu-west-1.
+    region: frankfurt
     healthCheckPath: /api/health
     autoDeploy: true
     # preDeployCommand: npx prisma migrate deploy
