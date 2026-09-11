@@ -42,6 +42,15 @@ enum SuggestionStatus {
   DECLINED
 }
 
+enum ActivityType {
+  MEETING
+  CALL
+  EMAIL
+  NOTE
+  TASK
+  OTHER
+}
+
 model Lead {
   id        String     @id @default(uuid())
   name      String
@@ -53,6 +62,7 @@ model Lead {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   meetings  Meeting[]
+  activities Activity[]
 }
 
 model KeyClient {
@@ -66,6 +76,7 @@ model KeyClient {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   meetings       Meeting[]
+  activities     Activity[]
 }
 
 model Meeting {
@@ -92,4 +103,33 @@ model Suggestion {
   submittedBy String? // email of the submitter, set from the auth token
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
+}
+
+// A logged interaction (call, email, note, …) attached to a Lead or KeyClient.
+// Each activity may carry a single "next follow-up" that drives reminders.
+model Activity {
+  id         String       @id @default(uuid())
+  type       ActivityType @default(NOTE)
+  occurredAt DateTime     @default(now()) // when the activity happened
+  note       String
+
+  // Next follow-up (reminder). Optional — set followUpAt to schedule one.
+  followUpAt     DateTime?
+  followUpNote   String?
+  followUpDone   Boolean   @default(false)
+  followUpDoneAt DateTime?
+
+  // Polymorphic link — attached to exactly one of a lead or a client (same as Meeting).
+  leadId   String?
+  lead     Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   KeyClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdBy String? // email, set from the auth token
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([followUpAt])
+  @@index([leadId])
+  @@index([clientId])
 }

@@ -9,6 +9,8 @@ import { MeetingsCalendar } from '@/components/meetings/MeetingsCalendar'
 import { ClientsGrid } from '@/components/clients/ClientsGrid'
 import { FeedbackWidget } from '@/components/feedback/FeedbackWidget'
 import { FeedbackLog } from '@/components/feedback/FeedbackLog'
+import { FollowUpsBoard } from '@/components/activities/FollowUpsBoard'
+import { FollowUpBell } from '@/components/activities/FollowUpBell'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -38,6 +40,7 @@ function ApiStatus() {
 
 export default function App() {
   const { ready, session, email, signOut } = useAuth()
+  const [tab, setTab] = useState('leads')
 
   // Auth gate (only when Supabase is configured).
   if (authEnabled && !ready) {
@@ -63,6 +66,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <ApiStatus />
+            <FollowUpBell onClick={() => setTab('followups')} />
             <FeedbackLog />
             {authEnabled && email && (
               <>
@@ -88,11 +92,12 @@ export default function App() {
           </div>
         </section>
 
-        <Tabs defaultValue="leads" className="w-full">
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList>
             <TabsTrigger value="leads">Leads</TabsTrigger>
             <TabsTrigger value="meetings">Meetings</TabsTrigger>
             <TabsTrigger value="clients">Key Clients</TabsTrigger>
+            <TabsTrigger value="followups">Oppfølging</TabsTrigger>
           </TabsList>
           <TabsContent value="leads" className="mt-5">
             <LeadsBoard />
@@ -102,6 +107,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="clients" className="mt-5">
             <ClientsGrid />
+          </TabsContent>
+          <TabsContent value="followups" className="mt-5">
+            <FollowUpsBoard />
           </TabsContent>
         </Tabs>
       </main>

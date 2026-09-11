@@ -15,6 +15,8 @@ import {
   meetingUpdateSchema,
   suggestionCreateSchema,
   suggestionUpdateSchema,
+  activityCreateSchema,
+  activityUpdateSchema,
 } from './validation';
 
 const prisma = new PrismaClient();
@@ -247,6 +249,127 @@ app.delete(
   handler(async (req, res) => {
     await prisma.suggestion.delete({ where: { id: req.params.id } });
     res.status(204).end();
+  })
+);
+
+// ========================= ACTIVITIES (log + follow-ups) =========================
+// List activities for one lead or client, newest first.
+app.get(
+  '/api/activities',
+  handler(async (req, res) => {
+    const { leadId, clientId } = req.query;
+    const where: Prisma.ActivityWhereInput = {};
+    if (typeof leadId === 'string' && leadId) where.leadId = leadId;
+    if (typeof clientId === 'string' && clientId) where.clientId = clientId;
+    const activities = await prisma.activity.findMany({
+      where,
+      orderBy: { occurredAt: 'desc' },
+    });
+    res.json(activities);
+  })
+);
+
+app.post(
+  '/api/activities',
+  validate(activityCreateSchema),
+  handler(async (req, res) => {
+    // createdBy comes from the verified token, never the client.
+    const activity = await prisma.activity.create({
+      data: { ...req.body, createdBy: req.user?.email ?? null },
+    });
+    res.status(201).json(activity);
+  })
+);
+
+app.put(
+  '/api/activities/:id',
+  validate(activityUpdateSchema),
+  handler(async (req, res) => {
+    const { followUpDone, ...rest } = req.body as Prisma.ActivityUncheckedUpdateInput & {
+      followUpDone?: boolean;
+    };
+    const data: Prisma.ActivityUncheckedUpdateInput = { ...rest };
+    // Keep followUpDoneAt in sync when the follow-up is completed/reopened.
+    if (followUpDone !== undefined) {
+      data.followUpDone = followUpDone;
+      data.followUpDoneAt = followUpDone ? new Date() : null;
+    }
+    const activity = await prisma.activity.update({
+      where: { id: req.params.id },
+      data,
+    });
+    res.json(activity);
+  })
+);
+
+app.delete(
+  '/api/activities/:id',
+  handler(async (req, res) => {
+    await prisma.activity.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  })
+);
+
+// Merged chronological timeline (activities + meetings) for one lead or client.
+app.get(
+  '/api/timeline',
+  handler(async (req, res) => {
+    const { leadId, clientId } = req.query;
+    const parent: { leadId?: string; clientId?: string } = {};
+    if (typeof leadId === 'string' && leadId) parent.leadId = leadId;
+    if (typeof clientId === 'string' && clientId) parent.clientId = clientId;
+    if (!parent.leadId && !parent.clientId) {
+      res.status(400).json({ error: 'Provide leadId or clientId' });
+      return;
+    }
+
+    const [activities, meetings] = await Promise.all([
+      prisma.activity.findMany({ where: parent, orderBy: { occurredAt: 'desc' } }),
+      prisma.meeting.findMany({ where: parent, orderBy: { startTime: 'desc' } }),
+    ]);
+
+    // Normalize both into a single shape the timeline can render.
+    const items = [
+      ...activities.map((a) => ({
+        id: a.id,
+        kind: 'activity' as const,
+        type: a.type as string,
+        title: null as string | null,
+        note: a.note,
+        at: a.occurredAt,
+        followUpAt: a.followUpAt,
+        followUpNote: a.followUpNote,
+        followUpDone: a.followUpDone,
+        createdBy: a.createdBy,
+      })),
+      ...meetings.map((m) => ({
+        id: m.id,
+        kind: 'meeting' as const,
+        type: 'MEETING',
+        title: m.title,
+        note: m.description,
+        at: m.startTime,
+        followUpAt: null,
+        followUpNote: null,
+        followUpDone: false,
+        createdBy: null,
+      })),
+    ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    res.json(items);
+  })
+);
+
+// Open follow-ups across all accounts, soonest first — powers the follow-up dashboard.
+app.get(
+  '/api/followups',
+  handler(async (_req, res) => {
+    const followups = await prisma.activity.findMany({
+      where: { followUpAt: { not: null }, followUpDone: false },
+      include: { lead: true, client: true },
+      orderBy: { followUpAt: 'asc' },
+    });
+    res.json(followups);
   })
 );
 

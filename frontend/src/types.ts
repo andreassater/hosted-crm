@@ -106,3 +106,62 @@ export type SuggestionInput = {
   message: string
   category: SuggestionCategory
 }
+
+// --- Activities (per-account log + follow-ups) ---
+export type ActivityType = 'MEETING' | 'CALL' | 'EMAIL' | 'NOTE' | 'TASK' | 'OTHER'
+
+export const ACTIVITY_TYPES: ActivityType[] = [
+  'MEETING',
+  'CALL',
+  'EMAIL',
+  'NOTE',
+  'TASK',
+  'OTHER',
+]
+
+export interface Activity {
+  id: string
+  type: ActivityType
+  occurredAt: string
+  note: string
+  followUpAt: string | null
+  followUpNote: string | null
+  followUpDone: boolean
+  followUpDoneAt: string | null
+  leadId: string | null
+  clientId: string | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// Payload for creating an activity. Exactly one of leadId/clientId must be set.
+export type ActivityInput = {
+  type: ActivityType
+  occurredAt: string
+  note: string
+  followUpAt?: string | null
+  followUpNote?: string | null
+  leadId?: string | null
+  clientId?: string | null
+}
+
+// One entry in the merged timeline (activity or existing meeting).
+export interface TimelineItem {
+  id: string
+  kind: 'activity' | 'meeting'
+  type: string
+  title: string | null
+  note: string | null
+  at: string
+  followUpAt: string | null
+  followUpNote: string | null
+  followUpDone: boolean
+  createdBy: string | null
+}
+
+// A follow-up row for the dashboard: an activity with its parent lead/client.
+export interface FollowUp extends Activity {
+  lead: Lead | null
+  client: KeyClient | null
+}

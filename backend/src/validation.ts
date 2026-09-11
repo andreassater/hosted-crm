@@ -45,6 +45,30 @@ export const suggestionUpdateSchema = z.object({
   category: z.enum(['FEATURE', 'IMPROVEMENT', 'BUG', 'OTHER']).optional(),
 });
 
+// An activity must attach to exactly one of a lead or a client.
+const activityBase = z.object({
+  type: z.enum(['MEETING', 'CALL', 'EMAIL', 'NOTE', 'TASK', 'OTHER']).default('NOTE'),
+  occurredAt: z.coerce.date().default(() => new Date()),
+  note: z.string().min(1).max(5000),
+  followUpAt: z.coerce.date().nullish(),
+  followUpNote: z.string().max(500).nullish(),
+  leadId: z.string().uuid().nullish(),
+  clientId: z.string().uuid().nullish(),
+});
+
+const exactlyOneParent = (d: { leadId?: string | null; clientId?: string | null }) =>
+  Boolean(d.leadId) !== Boolean(d.clientId);
+
+export const activityCreateSchema = activityBase.refine(exactlyOneParent, {
+  message: 'Provide exactly one of leadId or clientId',
+  path: ['leadId'],
+});
+
+// Update: any subset of fields, plus the ability to complete/reopen a follow-up.
+export const activityUpdateSchema = activityBase.partial().extend({
+  followUpDone: z.boolean().optional(),
+});
+
 /** Express middleware: validate & normalize req.body against a schema, or 400. */
 export const validate =
   (schema: ZodType) => (req: Request, res: Response, next: NextFunction) => {

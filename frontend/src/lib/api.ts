@@ -9,6 +9,10 @@ import type {
   SuggestionInput,
   SuggestionCategory,
   SuggestionStatus,
+  Activity,
+  ActivityInput,
+  TimelineItem,
+  FollowUp,
 } from '@/types'
 
 import { supabase } from './supabase'
@@ -101,4 +105,20 @@ export const suggestionsApi = {
   update: (id: string, data: { status?: SuggestionStatus; category?: SuggestionCategory }) =>
     http<Suggestion>(`/api/suggestions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id: string) => http<void>(`/api/suggestions/${id}`, { method: 'DELETE' }),
+}
+
+// --- Activities (log, timeline, follow-ups) ---
+export const activitiesApi = {
+  list: (filters: { leadId?: string; clientId?: string }) =>
+    http<Activity[]>(`/api/activities${qs(filters)}`),
+  create: (data: ActivityInput) =>
+    http<Activity>('/api/activities', { method: 'POST', body: JSON.stringify(data) }),
+  update: (
+    id: string,
+    data: Partial<ActivityInput> & { followUpDone?: boolean }
+  ) => http<Activity>(`/api/activities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => http<void>(`/api/activities/${id}`, { method: 'DELETE' }),
+  timeline: (filters: { leadId?: string; clientId?: string }) =>
+    http<TimelineItem[]>(`/api/timeline${qs(filters)}`),
+  followups: () => http<FollowUp[]>('/api/followups'),
 }

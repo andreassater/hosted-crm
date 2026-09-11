@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Pencil, Trash2, Crown, Mail, Phone } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Crown, Mail, Phone, History, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { clientsApi } from '@/lib/api'
 import { CLIENT_TIERS } from '@/types'
@@ -9,6 +9,7 @@ import { tierClass } from '@/lib/status'
 import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ClientDialog } from './ClientDialog'
+import { ActivityTimeline } from '@/components/activities/ActivityTimeline'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -27,6 +28,7 @@ export function ClientsGrid() {
   const [tier, setTier] = useState<string>(ALL)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<KeyClient | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients', { tier, search }],
@@ -156,6 +158,29 @@ export function ClientsGrid() {
                   {formatCurrency(client.annualRevenue)}
                 </div>
               </div>
+
+              <button
+                type="button"
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                onClick={() =>
+                  setExpandedId((id) => (id === client.id ? null : client.id))
+                }
+              >
+                <History className="h-4 w-4" />
+                Aktivitet
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform',
+                    expandedId === client.id && 'rotate-180'
+                  )}
+                />
+              </button>
+
+              {expandedId === client.id && (
+                <div className="mt-3 border-t pt-4">
+                  <ActivityTimeline clientId={client.id} name={client.companyName} />
+                </div>
+              )}
             </div>
           ))}
         </div>
