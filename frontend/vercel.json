@@ -7,9 +7,8 @@
   "rewrites": [
     {
       "//": "Proxy API calls to the backend so the browser stays same-origin (no CORS).",
-      "//2": "Replace the destination host with your deployed backend URL.",
       "source": "/api/:path*",
-      "destination": "https://your-backend.up.railway.app/api/:path*"
+      "destination": "https://hosted-crm-api.onrender.com/api/:path*"
     },
     {
       "//": "SPA fallback: serve index.html for client-side routes (static assets are served first).",
