@@ -64,7 +64,7 @@ export default function App() {
             <span className="inline-flex rounded-lg bg-primary p-1.5 text-primary-foreground">
               <Building2 className="h-4 w-4" />
             </span>
-            <span className="font-heading text-lg font-semibold">Hosted CRM</span>
+            <span className="font-heading text-lg font-semibold">Axess Europe CRM</span>
           </div>
           <div className="flex items-center gap-3">
             <ApiStatus />
